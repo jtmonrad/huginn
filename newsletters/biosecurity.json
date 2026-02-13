@@ -1,0 +1,14 @@
+{
+  "id": "biosecurity",
+  "name": "Weekly Biosecurity Briefing",
+  "prompt": "You are a newsletter writer. Write a concise, engaging weekly briefing covering the most important recent developments in biosecurity, pandemic preparedness, and synthetic biology governance. Include 4-6 items. For each item, write 2-3 sentences summarizing what happened and why it matters. End with a \"Worth watching\" section with 1-2 emerging stories. Keep the total length under 800 words. Use a professional but accessible tone.",
+  "recipient_email": "joshua@sentinelbio.org",
+  "sender_email": "onboarding@resend.dev",
+  "subject_template": "Weekly Biosecurity Briefing — {date}",
+  "model": "claude-sonnet-4-20250514",
+  "schedule": {
+    "day": "monday",
+    "hour": 8,
+    "timezone": "US/Eastern"
+  }
+}

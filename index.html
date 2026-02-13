@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newsletter Manager</title>
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📬</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Inter"', 'system-ui', '-apple-system', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(100%); } }
+        .fade-in { animation: fadeIn 0.25s ease-out; }
+        .slide-down { animation: slideDown 0.2s ease-out; }
+        .toast-in { animation: toastIn 0.3s ease-out; }
+        .toast-out { animation: toastOut 0.25s ease-in forwards; }
+        .modal-bg { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-900 antialiased">
+
+    <!-- ============================================================ -->
+    <!-- SETUP VIEW — shown if no GitHub connection configured yet    -->
+    <!-- ============================================================ -->
+    <div id="setup-view" class="hidden min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-50 to-white">
+        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 fade-in">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold">Newsletter Manager</h1>
+                <p class="text-gray-500 mt-2 text-sm">Connect to your GitHub repository to manage your automated newsletters.</p>
+            </div>
+
+            <form id="setup-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Repository</label>
+                    <input type="text" id="setup-repo" placeholder="username/weekly-newsletter"
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-sm">
+                    <p class="text-xs text-gray-400 mt-1">Your GitHub username / repository name</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Personal Access Token</label>
+                    <input type="password" id="setup-token" placeholder="github_pat_..."
+                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-sm">
+                    <p class="text-xs text-gray-400 mt-1">
+                        Fine-grained token with <strong>Contents</strong> and <strong>Actions</strong> read/write permissions.
+                    </p>
+                    <button type="button" id="token-help-toggle" class="text-xs text-indigo-600 hover:text-indigo-800 mt-1 font-medium">
+                        How do I create a token? &darr;
+                    </button>
+                    <div id="token-help" class="hidden mt-3 text-xs text-gray-600 bg-gray-50 rounded-lg p-4 space-y-2 border border-gray-100">
+                        <p><strong>1.</strong> Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" class="text-indigo-600 underline">github.com/settings/tokens</a> (Fine-grained tokens)</p>
+                        <p><strong>2.</strong> Click <strong>Generate new token</strong></p>
+                        <p><strong>3.</strong> Name it <code class="bg-gray-200 px-1 rounded">newsletter-manager</code></p>
+                        <p><strong>4.</strong> Under Repository access, select <strong>Only select repositories</strong> &rarr; pick your newsletter repo</p>
+                        <p><strong>5.</strong> Under Permissions &rarr; Repository permissions:</p>
+                        <ul class="ml-4 list-disc">
+                            <li><strong>Contents:</strong> Read and write</li>
+                            <li><strong>Actions:</strong> Read and write</li>
+                        </ul>
+                        <p><strong>6.</strong> Click <strong>Generate token</strong> and copy it</p>
+                    </div>
+                </div>
+
+                <div id="setup-error" class="hidden text-sm text-red-600 bg-red-50 p-3 rounded-lg"></div>
+
+                <button type="submit" id="setup-btn"
+                    class="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition flex items-center justify-center gap-2 text-sm">
+                    Connect to GitHub
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DASHBOARD VIEW — main app after connection                   -->
+    <!-- ============================================================ -->
+    <div id="dashboard-view" class="hidden">
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-30">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+                        </svg>
+                    </div>
+                    <h1 class="text-base font-semibold">Newsletter Manager</h1>
+                </div>
+                <div class="relative">
+                    <button id="settings-toggle" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition" title="Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </button>
+                    <div id="settings-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 p-4 slide-down z-40">
+                        <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2">Connected to</p>
+                        <p id="settings-repo" class="text-sm font-medium text-gray-900 mb-1"></p>
+                        <p id="settings-token" class="text-xs text-gray-400 font-mono mb-4"></p>
+                        <div class="flex gap-2">
+                            <a id="settings-gh-link" href="#" target="_blank" class="flex-1 text-center px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">View on GitHub</a>
+                            <button id="disconnect-btn" class="flex-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">Disconnect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+            <div id="dashboard-loading" class="hidden text-center py-20">
+                <svg class="animate-spin w-6 h-6 text-indigo-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <p class="text-sm text-gray-500">Loading newsletters...</p>
+            </div>
+            <div id="dashboard-content"></div>
+        </main>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ADD / EDIT MODAL                                             -->
+    <!-- ============================================================ -->
+    <div id="modal" class="hidden fixed inset-0 z-50 modal-bg flex items-start justify-center overflow-y-auto py-8 px-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full slide-down">
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+                <h2 id="modal-title" class="text-base font-semibold">New Newsletter</h2>
+                <button onclick="closeModal()" class="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form id="nl-form" class="p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Newsletter Name</label>
+                    <input type="text" id="f-name" placeholder="e.g., Weekly Biosecurity Briefing" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Prompt</label>
+                    <textarea id="f-prompt" rows="5" required placeholder="What should Claude write about?"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm resize-y"></textarea>
+                    <p class="text-xs text-gray-400 mt-1">The instruction sent to Claude each week.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Recipient Email</label>
+                        <input type="email" id="f-recipient" required placeholder="you@example.com"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Sender Email</label>
+                        <input type="text" id="f-sender" value="onboarding@resend.dev"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Subject Line</label>
+                    <input type="text" id="f-subject" placeholder="Weekly Briefing — {date}" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                    <p class="text-xs text-gray-400 mt-1"><code class="bg-gray-100 px-1 rounded">{date}</code> is replaced with the current date.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1.5">Schedule</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="f-day" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                            <option value="monday">Monday</option>
+                            <option value="tuesday">Tuesday</option>
+                            <option value="wednesday">Wednesday</option>
+                            <option value="thursday">Thursday</option>
+                            <option value="friday">Friday</option>
+                            <option value="saturday">Saturday</option>
+                            <option value="sunday">Sunday</option>
+                        </select>
+                        <select id="f-hour" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"></select>
+                        <select id="f-tz" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                            <option value="US/Eastern">Eastern</option>
+                            <option value="US/Central">Central</option>
+                            <option value="US/Mountain">Mountain</option>
+                            <option value="US/Pacific">Pacific</option>
+                            <option value="Europe/London">London</option>
+                            <option value="Europe/Berlin">Berlin</option>
+                            <option value="Asia/Tokyo">Tokyo</option>
+                            <option value="UTC">UTC</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Claude Model</label>
+                    <select id="f-model" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                        <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514 (recommended)</option>
+                        <option value="claude-haiku-4-5-20251001">claude-haiku-4-5-20251001 (faster, cheaper)</option>
+                    </select>
+                </div>
+                <div id="form-error" class="hidden text-sm text-red-600 bg-red-50 p-3 rounded-lg"></div>
+                <div class="flex gap-3 pt-1">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">Cancel</button>
+                    <button type="submit" id="form-submit-btn"
+                        class="flex-1 bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                        Save Newsletter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DELETE CONFIRMATION MODAL                                    -->
+    <!-- ============================================================ -->
+    <div id="delete-modal" class="hidden fixed inset-0 z-50 modal-bg flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 slide-down text-center">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold mb-1">Delete Newsletter</h3>
+            <p class="text-sm text-gray-500 mb-6">This will permanently delete <strong id="delete-name"></strong> and its schedule. This can't be undone.</p>
+            <div class="flex gap-3">
+                <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">Cancel</button>
+                <button id="confirm-delete-btn" class="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 transition flex items-center justify-center gap-2">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TOAST CONTAINER                                              -->
+    <!-- ============================================================ -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
+
+    <!-- ============================================================ -->
+    <!-- JAVASCRIPT                                                   -->
+    <!-- ============================================================ -->
+    <script>
+    // =====================================================================
+    // CONSTANTS
+    // =====================================================================
+    const API = 'https://api.github.com';
+    const PFX = 'nlmgr_';
+
+    const TZ_OFFSETS = {
+        'US/Eastern': -5, 'US/Central': -6, 'US/Mountain': -7, 'US/Pacific': -8,
+        'Europe/London': 0, 'Europe/Berlin': 1, 'Asia/Tokyo': 9, 'UTC': 0
+    };
+    const TZ_LABELS = {
+        'US/Eastern': 'Eastern', 'US/Central': 'Central', 'US/Mountain': 'Mountain',
+        'US/Pacific': 'Pacific', 'Europe/London': 'London', 'Europe/Berlin': 'Berlin',
+        'Asia/Tokyo': 'Tokyo', 'UTC': 'UTC'
+    };
+    const DAY_CRON = {
+        sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6
+    };
+
+    // =====================================================================
+    // STATE
+    // =====================================================================
+    let state = {
+        token: localStorage.getItem(PFX + 'token') || '',
+        owner: localStorage.getItem(PFX + 'owner') || '',
+        repo:  localStorage.getItem(PFX + 'repo')  || '',
+        newsletters: [],
+        workflowShas: {},
+        editingId: null,       // null = creating new
+        deletingId: null,
+    };
+
+    // =====================================================================
+    // UTILITIES
+    // =====================================================================
+    function slugify(t) { return t.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+    function b64e(s) { return btoa(unescape(encodeURIComponent(s))); }
+    function b64d(s) { return decodeURIComponent(escape(atob(s))); }
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function fmtHour(h) {
+        if (h === 0)  return '12:00 AM';
+        if (h === 12) return '12:00 PM';
+        return h < 12 ? h + ':00 AM' : (h - 12) + ':00 PM';
+    }
+    function $(id) { return document.getElementById(id); }
+
+    // =====================================================================
+    // GITHUB API
+    // =====================================================================
+    async function ghFetch(path, opts = {}) {
+        const url = path.startsWith('http') ? path : `${API}/repos/${state.owner}/${state.repo}${path}`;
+        const res = await fetch(url, {
+            ...opts,
+            headers: {
+                'Authorization': 'Bearer ' + state.token,
+                'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+                ...(opts.headers || {}),
+            },
+        });
+        return res;
+    }
+
+    async function validateConnection() {
+        const res = await ghFetch('');
+        if (!res.ok) throw new Error('Could not access repository. Check your token and repo name.');
+        return res.json();
+    }
+
+    async function loadNewsletters() {
+        $('dashboard-loading').classList.remove('hidden');
+        $('dashboard-content').innerHTML = '';
+
+        try {
+            // Load newsletter configs
+            const res = await ghFetch('/contents/newsletters');
+            let newsletters = [];
+
+            if (res.ok) {
+                const files = await res.json();
+                const jsonFiles = Array.isArray(files) ? files.filter(f => f.name.endsWith('.json')) : [];
+
+                // Fetch each config in parallel
+                const fetches = jsonFiles.map(async (f) => {
+                    const r = await ghFetch('/contents/newsletters/' + f.name);
+                    if (r.ok) {
+                        const data = await r.json();
+                        const nl = JSON.parse(b64d(data.content));
+                        nl._sha = data.sha;
+                        return nl;
+                    }
+                    return null;
+                });
+                newsletters = (await Promise.all(fetches)).filter(Boolean);
+            }
+
+            // Load workflow SHAs
+            state.workflowShas = {};
+            const wfRes = await ghFetch('/contents/.github/workflows');
+            if (wfRes.ok) {
+                const wfFiles = await wfRes.json();
+                if (Array.isArray(wfFiles)) {
+                    for (const wf of wfFiles) {
+                        if (wf.name.startsWith('newsletter-') && wf.name.endsWith('.yml')) {
+                            const id = wf.name.slice('newsletter-'.length, -'.yml'.length);
+                            state.workflowShas[id] = wf.sha;
+                        }
+                    }
+                }
+            }
+
+            state.newsletters = newsletters;
+
+            // Load last-run status for each newsletter (non-blocking)
+            for (const nl of newsletters) {
+                loadRunStatus(nl.id);
+            }
+        } catch (e) {
+            toast('Failed to load: ' + e.message, 'error');
+        }
+
+        $('dashboard-loading').classList.add('hidden');
+        renderDashboard();
+    }
+
+    async function loadRunStatus(id) {
+        try {
+            const res = await ghFetch('/actions/workflows/newsletter-' + id + '.yml/runs?per_page=1');
+            if (res.ok) {
+                const data = await res.json();
+                const el = $('status-' + id);
+                if (!el) return;
+
+                if (data.workflow_runs && data.workflow_runs.length > 0) {
+                    const run = data.workflow_runs[0];
+                    const d = new Date(run.created_at);
+                    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+                    if (run.conclusion === 'success') {
+                        el.innerHTML = '<span class="inline-flex items-center gap-1 text-green-600"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>Last sent ' + dateStr + '</span>';
+                    } else if (run.conclusion === 'failure') {
+                        el.innerHTML = '<span class="inline-flex items-center gap-1 text-red-500"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>Failed ' + dateStr + '</span> <a href="' + esc(run.html_url) + '" target="_blank" class="text-indigo-600 underline ml-1">View logs</a>';
+                    } else if (run.status === 'in_progress' || run.status === 'queued') {
+                        el.innerHTML = '<span class="inline-flex items-center gap-1 text-amber-600"><svg class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Running now...</span>';
+                    }
+                } else {
+                    el.textContent = 'Never sent yet';
+                }
+            }
+        } catch (e) {
+            // Non-critical, ignore
+        }
+    }
+
+    async function saveToGitHub(newsletter, isNew) {
+        const id = newsletter.id;
+
+        // Clean internal fields before saving
+        const clean = {};
+        for (const k of Object.keys(newsletter)) {
+            if (!k.startsWith('_')) clean[k] = newsletter[k];
+        }
+        const configContent = JSON.stringify(clean, null, 2);
+        const workflowContent = genWorkflowYAML(newsletter);
+
+        // Save config file
+        const cfgBody = { message: (isNew ? 'Add' : 'Update') + ' newsletter: ' + newsletter.name, content: b64e(configContent) };
+        if (!isNew && newsletter._sha) cfgBody.sha = newsletter._sha;
+
+        const cfgRes = await ghFetch('/contents/newsletters/' + id + '.json', { method: 'PUT', body: JSON.stringify(cfgBody) });
+        if (!cfgRes.ok) {
+            const err = await cfgRes.json().catch(() => ({}));
+            throw new Error('Config save failed: ' + (err.message || cfgRes.status));
+        }
+
+        // Save workflow file
+        const wfBody = { message: (isNew ? 'Add' : 'Update') + ' workflow: ' + newsletter.name, content: b64e(workflowContent) };
+        if (!isNew && state.workflowShas[id]) wfBody.sha = state.workflowShas[id];
+
+        const wfRes = await ghFetch('/contents/.github/workflows/newsletter-' + id + '.yml', { method: 'PUT', body: JSON.stringify(wfBody) });
+        if (!wfRes.ok) {
+            const err = await wfRes.json().catch(() => ({}));
+            throw new Error('Workflow save failed: ' + (err.message || wfRes.status));
+        }
+    }
+
+    async function deleteFromGitHub(newsletter) {
+        const id = newsletter.id;
+
+        if (newsletter._sha) {
+            await ghFetch('/contents/newsletters/' + id + '.json', {
+                method: 'DELETE',
+                body: JSON.stringify({ message: 'Delete newsletter: ' + newsletter.name, sha: newsletter._sha }),
+            });
+        }
+
+        if (state.workflowShas[id]) {
+            await ghFetch('/contents/.github/workflows/newsletter-' + id + '.yml', {
+                method: 'DELETE',
+                body: JSON.stringify({ message: 'Delete workflow: ' + newsletter.name, sha: state.workflowShas[id] }),
+            });
+        }
+    }
+
+    async function triggerSend(id) {
+        const res = await ghFetch('/actions/workflows/newsletter-' + id + '.yml/dispatches', {
+            method: 'POST',
+            body: JSON.stringify({ ref: 'main' }),
+        });
+        if (res.status !== 204) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Trigger failed (status ' + res.status + ')');
+        }
+    }
+
+    // =====================================================================
+    // WORKFLOW YAML GENERATION
+    // =====================================================================
+    function genWorkflowYAML(nl) {
+        const s = nl.schedule;
+        const offset = TZ_OFFSETS[s.timezone] || 0;
+        const hUTC = ((s.hour - offset) % 24 + 24) % 24;
+        const dCron = DAY_CRON[s.day.toLowerCase()];
+
+        return '# Auto-generated by Newsletter Manager \u2014 edit via the web UI\n'
+            + '\n'
+            + 'name: "Newsletter: ' + nl.name.replace(/"/g, '\\"') + '"\n'
+            + '\n'
+            + 'on:\n'
+            + '  schedule:\n'
+            + "    - cron: '0 " + hUTC + ' * * ' + dCron + "'\n"
+            + '  workflow_dispatch:\n'
+            + '\n'
+            + 'jobs:\n'
+            + '  send-newsletter:\n'
+            + '    runs-on: ubuntu-latest\n'
+            + '    steps:\n'
+            + '      - name: Check out repository\n'
+            + '        uses: actions/checkout@v4\n'
+            + '      - name: Set up Python\n'
+            + '        uses: actions/setup-python@v5\n'
+            + '        with:\n'
+            + "          python-version: '3.12'\n"
+            + '      - name: Install dependencies\n'
+            + '        run: pip install -r requirements.txt\n'
+            + '      - name: Generate and send newsletter\n'
+            + '        env:\n'
+            + '          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}\n'
+            + '          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}\n'
+            + '        run: python newsletter.py ' + nl.id + '\n';
+    }
+
+    // =====================================================================
+    // UI RENDERING
+    // =====================================================================
+    function renderDashboard() {
+        const grid = $('dashboard-content');
+        const nls = state.newsletters;
+
+        if (nls.length === 0) {
+            grid.innerHTML = `
+                <div class="text-center py-20 fade-in">
+                    <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-1">No newsletters yet</h3>
+                    <p class="text-sm text-gray-500 mb-6">Create your first automated newsletter.</p>
+                    <button onclick="openAddModal()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/></svg>
+                        Create Newsletter
+                    </button>
+                </div>`;
+            return;
+        }
+
+        let html = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 fade-in">';
+
+        for (const nl of nls) {
+            const day = nl.schedule.day.charAt(0).toUpperCase() + nl.schedule.day.slice(1);
+            const time = fmtHour(nl.schedule.hour);
+            const tz = TZ_LABELS[nl.schedule.timezone] || nl.schedule.timezone;
+
+            html += `
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-5 flex flex-col">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 mb-3">${esc(nl.name)}</h3>
+                    <div class="space-y-1.5 text-sm text-gray-500">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>${day}s at ${time} ${tz}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                            <span>${esc(nl.recipient_email)}</span>
+                        </div>
+                    </div>
+                    <div id="status-${esc(nl.id)}" class="mt-3 text-xs text-gray-400">Loading status...</div>
+                </div>
+                <div class="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                    <button onclick="openEditModal('${esc(nl.id)}')"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Edit</button>
+                    <button onclick="openDeleteModal('${esc(nl.id)}')"
+                        class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">Delete</button>
+                    <button onclick="handleSendNow('${esc(nl.id)}')" id="send-${esc(nl.id)}"
+                        class="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+                        Send Now
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        // "Add" card
+        html += `
+            <button onclick="openAddModal()"
+                class="border-2 border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center justify-center text-gray-400 hover:text-indigo-600 hover:border-indigo-400 transition-colors min-h-[200px] cursor-pointer group">
+                <div class="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-indigo-50 flex items-center justify-center mb-3 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/></svg>
+                </div>
+                <span class="text-sm font-medium">Add Newsletter</span>
+            </button>`;
+
+        html += '</div>';
+        grid.innerHTML = html;
+    }
+
+    // =====================================================================
+    // MODAL HANDLERS
+    // =====================================================================
+    function openAddModal() {
+        state.editingId = null;
+        $('modal-title').textContent = 'New Newsletter';
+        $('form-submit-btn').textContent = 'Create Newsletter';
+        $('nl-form').reset();
+        $('f-sender').value = 'onboarding@resend.dev';
+        $('f-hour').value = '8';
+        $('f-tz').value = 'US/Eastern';
+        $('form-error').classList.add('hidden');
+        $('modal').classList.remove('hidden');
+    }
+
+    function openEditModal(id) {
+        const nl = state.newsletters.find(n => n.id === id);
+        if (!nl) return;
+
+        state.editingId = id;
+        $('modal-title').textContent = 'Edit Newsletter';
+        $('form-submit-btn').textContent = 'Save Changes';
+        $('f-name').value = nl.name;
+        $('f-prompt').value = nl.prompt;
+        $('f-recipient').value = nl.recipient_email;
+        $('f-sender').value = nl.sender_email;
+        $('f-subject').value = nl.subject_template;
+        $('f-day').value = nl.schedule.day;
+        $('f-hour').value = String(nl.schedule.hour);
+        $('f-tz').value = nl.schedule.timezone;
+        $('f-model').value = nl.model;
+        $('form-error').classList.add('hidden');
+        $('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        $('modal').classList.add('hidden');
+        state.editingId = null;
+    }
+
+    function openDeleteModal(id) {
+        const nl = state.newsletters.find(n => n.id === id);
+        if (!nl) return;
+        state.deletingId = id;
+        $('delete-name').textContent = nl.name;
+        $('delete-modal').classList.remove('hidden');
+    }
+
+    function closeDeleteModal() {
+        $('delete-modal').classList.add('hidden');
+        state.deletingId = null;
+    }
+
+    // =====================================================================
+    // EVENT HANDLERS
+    // =====================================================================
+    // Setup form
+    $('setup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const repoFull = $('setup-repo').value.trim();
+        const token = $('setup-token').value.trim();
+        const errEl = $('setup-error');
+
+        if (!repoFull.includes('/')) {
+            errEl.textContent = 'Repository must be in the format: username/repo-name';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        const [owner, repo] = repoFull.split('/');
+        const btn = $('setup-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Connecting...';
+
+        state.token = token;
+        state.owner = owner;
+        state.repo = repo;
+
+        try {
+            await validateConnection();
+            localStorage.setItem(PFX + 'token', token);
+            localStorage.setItem(PFX + 'owner', owner);
+            localStorage.setItem(PFX + 'repo', repo);
+
+            $('setup-view').classList.add('hidden');
+            $('dashboard-view').classList.remove('hidden');
+            updateSettingsDisplay();
+            await loadNewsletters();
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.classList.remove('hidden');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = 'Connect to GitHub';
+    });
+
+    // Newsletter form
+    $('nl-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = $('form-error');
+        const btn = $('form-submit-btn');
+        const isNew = state.editingId === null;
+
+        const name = $('f-name').value.trim();
+        const id = isNew ? slugify(name) : state.editingId;
+
+        if (!id) {
+            errEl.textContent = 'Please enter a valid name.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        // Check for duplicate IDs when creating
+        if (isNew && state.newsletters.some(n => n.id === id)) {
+            errEl.textContent = 'A newsletter with this name already exists. Choose a different name.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        const existing = isNew ? {} : (state.newsletters.find(n => n.id === id) || {});
+
+        const newsletter = {
+            id: id,
+            name: name,
+            prompt: $('f-prompt').value.trim(),
+            recipient_email: $('f-recipient').value.trim(),
+            sender_email: $('f-sender').value.trim(),
+            subject_template: $('f-subject').value.trim(),
+            model: $('f-model').value,
+            schedule: {
+                day: $('f-day').value,
+                hour: parseInt($('f-hour').value, 10),
+                timezone: $('f-tz').value,
+            },
+            _sha: existing._sha || null,
+        };
+
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving...';
+
+        try {
+            await saveToGitHub(newsletter, isNew);
+            closeModal();
+            toast(isNew ? 'Newsletter created!' : 'Newsletter updated!', 'success');
+            await loadNewsletters();
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.classList.remove('hidden');
+        }
+
+        btn.disabled = false;
+        btn.textContent = origText;
+    });
+
+    // Delete confirmation
+    $('confirm-delete-btn').addEventListener('click', async () => {
+        const nl = state.newsletters.find(n => n.id === state.deletingId);
+        if (!nl) return;
+
+        const btn = $('confirm-delete-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Deleting...';
+
+        try {
+            await deleteFromGitHub(nl);
+            closeDeleteModal();
+            toast('Newsletter deleted.', 'success');
+            await loadNewsletters();
+        } catch (err) {
+            toast('Delete failed: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+    });
+
+    // Send Now
+    async function handleSendNow(id) {
+        const nl = state.newsletters.find(n => n.id === id);
+        if (!nl) return;
+
+        const btn = $('send-' + id);
+        if (!btn) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Triggering...';
+
+        try {
+            await triggerSend(id);
+            toast('Send triggered! Your email should arrive within 2\u20133 minutes.', 'success');
+            // Refresh status after a delay
+            setTimeout(() => loadRunStatus(id), 15000);
+        } catch (err) {
+            toast('Send failed: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg> Send Now';
+    }
+
+    // Settings toggle
+    $('settings-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        $('settings-dropdown').classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => {
+        $('settings-dropdown').classList.add('hidden');
+    });
+
+    $('settings-dropdown').addEventListener('click', (e) => e.stopPropagation());
+
+    // Disconnect
+    $('disconnect-btn').addEventListener('click', () => {
+        localStorage.removeItem(PFX + 'token');
+        localStorage.removeItem(PFX + 'owner');
+        localStorage.removeItem(PFX + 'repo');
+        state.token = '';
+        state.owner = '';
+        state.repo = '';
+        state.newsletters = [];
+        $('dashboard-view').classList.add('hidden');
+        $('settings-dropdown').classList.add('hidden');
+        $('setup-view').classList.remove('hidden');
+    });
+
+    // Token help toggle
+    $('token-help-toggle').addEventListener('click', () => {
+        $('token-help').classList.toggle('hidden');
+    });
+
+    // Close modals on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+            closeDeleteModal();
+        }
+    });
+
+    // Close modals on backdrop click
+    $('modal').addEventListener('click', (e) => {
+        if (e.target === $('modal')) closeModal();
+    });
+    $('delete-modal').addEventListener('click', (e) => {
+        if (e.target === $('delete-modal')) closeDeleteModal();
+    });
+
+    // =====================================================================
+    // SETTINGS DISPLAY
+    // =====================================================================
+    function updateSettingsDisplay() {
+        $('settings-repo').textContent = state.owner + '/' + state.repo;
+        $('settings-token').textContent = state.token.slice(0, 12) + '\u2026' + state.token.slice(-4);
+        $('settings-gh-link').href = 'https://github.com/' + state.owner + '/' + state.repo;
+    }
+
+    // =====================================================================
+    // TOAST NOTIFICATIONS
+    // =====================================================================
+    function toast(msg, type) {
+        const container = $('toast-container');
+        const el = document.createElement('div');
+        const color = type === 'error' ? 'bg-red-600' : 'bg-gray-900';
+        const icon = type === 'error'
+            ? '<svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>'
+            : '<svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>';
+
+        el.className = `${color} text-white px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-2 max-w-sm toast-in`;
+        el.innerHTML = icon + '<span>' + esc(msg) + '</span>';
+        container.appendChild(el);
+
+        setTimeout(() => {
+            el.classList.remove('toast-in');
+            el.classList.add('toast-out');
+            setTimeout(() => el.remove(), 300);
+        }, 4500);
+    }
+
+    // =====================================================================
+    // INITIALIZATION
+    // =====================================================================
+    function populateHourDropdown() {
+        const sel = $('f-hour');
+        for (let h = 0; h < 24; h++) {
+            const opt = document.createElement('option');
+            opt.value = String(h);
+            opt.textContent = fmtHour(h);
+            sel.appendChild(opt);
+        }
+        sel.value = '8';
+    }
+
+    async function init() {
+        populateHourDropdown();
+
+        if (state.token && state.owner && state.repo) {
+            // Already connected
+            $('setup-view').classList.add('hidden');
+            $('dashboard-view').classList.remove('hidden');
+            updateSettingsDisplay();
+            await loadNewsletters();
+        } else {
+            // Show setup
+            $('setup-view').classList.remove('hidden');
+            $('dashboard-view').classList.add('hidden');
+        }
+    }
+
+    init();
+    </script>
+</body>
+</html>
