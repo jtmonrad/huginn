@@ -60,29 +60,68 @@ def get_local_now(tz_name):
 
 
 def generate_newsletter(config):
-    """Call Claude to generate the newsletter content."""
+    """
+    Call Claude with web search enabled to generate the newsletter.
+    Claude will automatically search the web for current information,
+    then write the newsletter based on what it finds.
+    """
     client = anthropic.Anthropic()
 
     tz_name = config.get("schedule", {}).get("timezone", "US/Eastern")
     now = get_local_now(tz_name)
     today = now.strftime("%B %d, %Y")
 
-    print(f"Calling Claude ({config['model']})...")
+    print(f"Calling Claude ({config['model']}) with web search...")
 
-    message = client.messages.create(
-        model=config["model"],
-        max_tokens=2000,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Today's date is {today}.\n\n{config['prompt'].strip()}",
-            }
-        ],
+    prompt = (
+        f"Today's date is {today}.\n\n"
+        f"{config['prompt'].strip()}\n\n"
+        "Use web search to find real, current developments and news. "
+        "Output ONLY the newsletter content — no preamble or commentary "
+        "about your search process."
     )
 
-    text = message.content[0].text
-    print(f"Generated ({len(text)} chars)")
-    return text
+    messages = [{"role": "user", "content": prompt}]
+    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 10}]
+
+    # Claude may pause during long search sequences — keep going until done
+    all_content = []
+    total_searches = 0
+
+    while True:
+        response = client.messages.create(
+            model=config["model"],
+            max_tokens=4000,
+            tools=tools,
+            messages=messages,
+        )
+
+        all_content.extend(response.content)
+
+        # Count searches in this response
+        usage = getattr(response.usage, "server_tool_use", None)
+        if usage:
+            count = (
+                usage.get("web_search_requests", 0)
+                if isinstance(usage, dict)
+                else getattr(usage, "web_search_requests", 0)
+            )
+            total_searches += count
+
+        # If Claude paused mid-turn (long search), continue
+        if response.stop_reason == "pause_turn":
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": "Please continue."})
+            print(f"  Searching... ({total_searches} searches so far)")
+        else:
+            break
+
+    # Extract only the text blocks (skip search query/result blocks)
+    text_parts = [block.text for block in all_content if hasattr(block, "text")]
+    newsletter_text = "\n".join(text_parts)
+
+    print(f"Generated ({len(newsletter_text)} chars, {total_searches} web searches)")
+    return newsletter_text
 
 
 def format_as_html(text, config):
