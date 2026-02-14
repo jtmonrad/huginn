@@ -5,7 +5,7 @@
   "recipient_email": "joshua@sentinelbio.org",
   "sender_email": "onboarding@resend.dev",
   "subject_template": "Weekly Biosecurity Briefing — {date}",
-  "model": "claude-opus-4-20250415",
+  "model": "claude-opus-4-20250514",
   "schedule": {
     "day": "monday",
     "hour": 8,
