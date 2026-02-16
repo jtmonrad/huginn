@@ -82,7 +82,7 @@ def generate_newsletter(config):
     )
 
     messages = [{"role": "user", "content": prompt}]
-    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 10}]
+    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
 
     # Claude may pause during long search sequences — keep going until done
     all_content = []
